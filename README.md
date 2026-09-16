@@ -1,16 +1,31 @@
-# React + Vite
+# Alisados Maca
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Primera versión de la web pública y experiencia de reservas de Alisados Maca. Está construida con Next.js, TypeScript y Tailwind CSS, con una interfaz mobile-first y datos locales.
 
-Currently, two official plugins are available:
+## Ejecutar localmente
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+Abrí [http://localhost:3000](http://localhost:3000).
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Comandos
 
-## Expanding the ESLint configuration
+- `npm run dev`: entorno de desarrollo.
+- `npm run build`: build de producción.
+- `npm run start`: servidor de producción.
+- `npm run lint`: análisis estático.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Estructura
+
+- `src/app`: rutas públicas, reserva, confirmación y admin.
+- `src/components`: componentes reutilizables y wizard de reserva.
+- `src/config`: negocio, servicios y reglas de turnos centralizados.
+- `src/lib`: helpers de formato y fechas.
+- `src/types`: tipos compartidos.
+
+## Integraciones pendientes
+
+La agenda y su disponibilidad, clientes, persistencia de reservas, autenticación del admin y dirección privada están mockeados para una futura integración con Supabase. El pago de la seña es una simulación local preparada para reemplazarse por Mercado Pago.
