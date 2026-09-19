@@ -5,7 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Arrow, Check, Sparkle } from "@/components/icons";
 import { bookingConfig } from "@/config/booking";
 import { getService, services } from "@/config/services";
+import { useMockBookingStore } from "@/hooks/use-mock-booking-store";
+import { getAvailableTimes, isPastDate, isSunday, validateSchedule } from "@/lib/booking-availability";
 import { formatBookingDate, formatCurrency, getTodayInputValue } from "@/lib/format";
+import { createBooking } from "@/lib/mock-booking-repository";
+import { isValidArgentineWhatsApp, isValidPersonName } from "@/lib/validation";
 import type { BookingFormData, ServiceSlug } from "@/types";
 
 const stepLabels = ["Servicio", "Turno", "Tus datos", "Confirmar"];
@@ -21,8 +25,10 @@ export function BookingWizard() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [paying, setPaying] = useState(false);
+  const { bookings, blocks } = useMockBookingStore();
   const selectedService = data.service ? getService(data.service) : undefined;
   const today = useMemo(() => getTodayInputValue(), []);
+  const availableTimes = getAvailableTimes({ date: data.date, bookings, blocks });
 
   function update<K extends keyof BookingFormData>(key: K, value: BookingFormData[K]) {
     setData((current) => ({ ...current, [key]: value }));
@@ -38,13 +44,15 @@ export function BookingWizard() {
     const nextErrors: Record<string, string> = {};
     if (step === 1 && !getService(data.service)) nextErrors.service = "Seleccioná un servicio para continuar.";
     if (step === 2) {
-      if (!data.date) nextErrors.date = "Elegí una fecha.";
-      else if (new Date(`${data.date}T12:00:00`).getDay() === 0) nextErrors.date = "Los domingos el salón está cerrado.";
-      if (!data.time) nextErrors.time = "Elegí un horario.";
+      const scheduleError = validateSchedule({ date: data.date, time: data.time, bookings, blocks });
+      if (scheduleError) {
+        const dateIsInvalid = !data.date || isPastDate(data.date) || isSunday(data.date);
+        nextErrors[dateIsInvalid ? "date" : "time"] = scheduleError;
+      }
     }
     if (step === 3) {
-      if (data.name.trim().length < 2) nextErrors.name = "Ingresá tu nombre.";
-      if (!/^\+?[\d\s()-]{8,}$/.test(data.whatsapp)) nextErrors.whatsapp = "Ingresá un WhatsApp válido.";
+      if (!isValidPersonName(data.name)) nextErrors.name = "Ingresá un nombre válido.";
+      if (!isValidArgentineWhatsApp(data.whatsapp)) nextErrors.whatsapp = "Ingresá un número de WhatsApp válido.";
       if (data.email && !/^\S+@\S+\.\S+$/.test(data.email)) nextErrors.email = "Ingresá un email válido.";
     }
     if (step === 4 && !data.acceptedPolicy) nextErrors.acceptedPolicy = "Necesitamos que aceptes la política para continuar.";
@@ -59,16 +67,38 @@ export function BookingWizard() {
   function back() { setErrors({}); setStep((current) => Math.max(1, current - 1)); }
 
   function handleDate(value: string) {
-    update("date", value);
-    if (value && new Date(`${value}T12:00:00`).getDay() === 0) setErrors((current) => ({ ...current, date: "Los domingos el salón está cerrado." }));
+    setData((current) => ({ ...current, date: value, time: "" }));
+    let dateError = "";
+    if (isPastDate(value)) dateError = "No podés seleccionar una fecha anterior a hoy.";
+    else if (isSunday(value)) dateError = "Los domingos no están disponibles.";
+    setErrors((current) => ({ ...current, date: dateError, time: "" }));
   }
 
   function confirm() {
     if (!validateCurrent()) return;
     setPaying(true);
-    const booking = { ...data, id: `AM-${Date.now().toString().slice(-6)}`, createdAt: new Date().toISOString() };
-    window.sessionStorage.setItem("alisados-maca-booking", JSON.stringify(booking));
-    window.setTimeout(() => router.push("/reserva/confirmada"), 900);
+    const normalizedName = data.name.trim().replace(/\s+/g, " ");
+    const booking = { ...data, name: normalizedName, id: `AM-${Date.now().toString().slice(-6)}`, createdAt: new Date().toISOString() };
+    try {
+      createBooking({
+        id: booking.id,
+        clientName: normalizedName,
+        whatsapp: data.whatsapp.trim(),
+        service: data.service as ServiceSlug,
+        date: data.date,
+        time: data.time,
+        status: "confirmed",
+        depositStatus: "paid",
+        source: "public",
+        createdAt: booking.createdAt,
+      });
+      window.sessionStorage.setItem("alisados-maca-booking", JSON.stringify(booking));
+      window.setTimeout(() => router.push("/reserva/confirmada"), 900);
+    } catch {
+      setPaying(false);
+      setStep(2);
+      setErrors({ time: "Ese horario acaba de dejar de estar disponible. Elegí otro." });
+    }
   }
 
   return (
@@ -79,7 +109,7 @@ export function BookingWizard() {
       <div className="booking-card">
         {step === 1 && <div className="booking-step"><StepTitle number="01" title="¿Qué tratamiento querés?" subtitle="Elegí una opción para comenzar." /><div className="booking-options" role="radiogroup" aria-label="Servicios disponibles" aria-describedby={errors.service ? "service-error" : undefined}>{services.map((service) => { const isSelected = data.service === service.slug; return <label className={`select-card ${isSelected ? "selected" : ""}`} data-selected={isSelected} key={service.slug}><input className="select-card-input" type="radio" name="service" value={service.slug} checked={isSelected} onChange={() => selectService(service.slug)} /><span className="select-check" aria-hidden="true"><Check /></span><Sparkle /><span><strong>{service.name}</strong><small>{service.shortDescription}</small></span><b>Desde {formatCurrency(service.priceFrom)}</b></label>; })}</div>{errors.service && <p className="field-error field-error--prominent" id="service-error" role="alert">{errors.service}</p>}</div>}
 
-        {step === 2 && <div className="booking-step"><StepTitle number="02" title="Elegí día y horario" subtitle={`Duración aproximada: ${selectedService?.estimatedDurationHours ?? 3} horas.`} /><label className="field"><span>Fecha</span><input type="date" value={data.date} min={today} onChange={(event) => handleDate(event.target.value)} /></label>{errors.date && <ErrorText>{errors.date}</ErrorText>}<fieldset className="time-field"><legend>Horarios disponibles</legend><div className="time-options">{bookingConfig.availableTimes.map((time) => <button type="button" disabled={!data.date || Boolean(errors.date)} className={data.time === time ? "selected" : ""} onClick={() => update("time", time)} key={time}>{time}</button>)}</div></fieldset>{errors.time && <ErrorText>{errors.time}</ErrorText>}<p className="availability-note">La disponibilidad es simulada en esta primera versión.</p></div>}
+        {step === 2 && <div className="booking-step"><StepTitle number="02" title="Elegí día y horario" subtitle={`Duración aproximada: ${selectedService?.estimatedDurationHours ?? 3} horas.`} /><label className="field"><span>Fecha</span><input type="date" value={data.date} min={today} onChange={(event) => handleDate(event.target.value)} /></label>{errors.date && <ErrorText>{errors.date}</ErrorText>}<fieldset className="time-field"><legend>Horarios disponibles</legend><div className="time-options">{availableTimes.map((time) => <button type="button" className={data.time === time ? "selected" : ""} onClick={() => update("time", time)} key={time}>{time}</button>)}</div>{data.date && !errors.date && availableTimes.length === 0 && <p className="empty-times" role="status">No hay horarios disponibles para este día.</p>}</fieldset>{errors.time && <ErrorText>{errors.time}</ErrorText>}<p className="availability-note">La disponibilidad contempla reservas y bloqueos de esta agenda local.</p></div>}
 
         {step === 3 && <div className="booking-step"><StepTitle number="03" title="Contanos sobre vos" subtitle="Usaremos estos datos para enviarte la confirmación." /><div className="form-grid"><label className="field field--full"><span>Nombre y apellido *</span><input autoComplete="name" placeholder="Ej. Camila Rodríguez" value={data.name} onChange={(event) => update("name", event.target.value)} />{errors.name && <ErrorText>{errors.name}</ErrorText>}</label><label className="field"><span>WhatsApp *</span><input type="tel" autoComplete="tel" placeholder="11 2345 6789" value={data.whatsapp} onChange={(event) => update("whatsapp", event.target.value)} />{errors.whatsapp && <ErrorText>{errors.whatsapp}</ErrorText>}</label><label className="field"><span>Email <small>(opcional)</small></span><input type="email" autoComplete="email" placeholder="tu@email.com" value={data.email} onChange={(event) => update("email", event.target.value)} />{errors.email && <ErrorText>{errors.email}</ErrorText>}</label></div><div className="privacy-inline">Tus datos solo se usarán para gestionar este turno.</div></div>}
 

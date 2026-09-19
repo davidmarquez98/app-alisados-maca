@@ -45,6 +45,7 @@ export const initialAdminAppointments: AdminAppointment[] = [
     status: "confirmed",
     depositStatus: "paid",
     notes: "Prefiere poco volumen en las puntas.",
+    source: "seed",
   },
   {
     id: "turno-julieta",
@@ -55,6 +56,7 @@ export const initialAdminAppointments: AdminAppointment[] = [
     time: "12:00",
     status: "pending",
     depositStatus: "pending",
+    source: "seed",
   },
   {
     id: "turno-sofia",
@@ -65,6 +67,7 @@ export const initialAdminAppointments: AdminAppointment[] = [
     time: "16:00",
     status: "confirmed",
     depositStatus: "paid",
+    source: "seed",
   },
   {
     id: "turno-valentina",
@@ -76,5 +79,8 @@ export const initialAdminAppointments: AdminAppointment[] = [
     status: "confirmed",
     depositStatus: "paid",
     wasRescheduled: true,
+    source: "seed",
   },
 ];
+
+export const agendaBlockReasons = ["Vacaciones", "No trabajo", "Feriado", "Compromiso personal", "Otro"] as const;
