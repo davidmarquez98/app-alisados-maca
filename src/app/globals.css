@@ -156,7 +156,7 @@ h2 { font-size: clamp(35px, 4.5vw, 54px); line-height: 1.05; letter-spacing: -.0
 .select-card:hover { border-color: var(--rose); transform: translateY(-2px); }
 .select-card.selected { border: 2px solid var(--rose-dark); padding: 25px; background: #f8e9ed; box-shadow: 0 0 0 4px rgba(169,110,130,.13), 0 12px 28px rgba(80,48,60,.1); }
 .select-card:focus-within { outline: 3px solid rgba(169,110,130,.25); outline-offset: 3px; }
-.select-card-input { width: 1px; height: 1px; position: absolute; overflow: hidden; opacity: 0; pointer-events: none; }
+.select-card-input { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; pointer-events: auto; touch-action: manipulation; }
 .select-card > svg { width: 23px; margin-bottom: 28px; color: var(--rose); }
 .select-card strong { display: block; margin-bottom: 6px; font-family: var(--serif); font-size: 25px; font-weight: 400; }
 .select-card small { display: block; color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -175,6 +175,7 @@ h2 { font-size: clamp(35px, 4.5vw, 54px); line-height: 1.05; letter-spacing: -.0
 .time-options button:hover:not(:disabled), .time-options button.selected { border-color: var(--rose); background: #fbf2f4; color: var(--rose-dark); }
 .time-options button:disabled { cursor: not-allowed; opacity: .4; }
 .empty-times { grid-column: 1 / -1; margin: 0; padding: 18px; border: 1px dashed var(--line); color: var(--muted); font-size: 12px; text-align: center; }
+.catalog-notice { margin: 20px 0; padding: 16px 18px; border: 1px solid var(--line); background: var(--cream); color: var(--muted); font-size: 13px; line-height: 1.5; }
 .availability-note { margin: 12px 0 0; color: var(--muted); font-size: 11px; }
 .field-error { margin: 7px 0 0; color: #a43d4a; font-size: 12px; font-family: var(--sans); }
 .field-error--prominent { margin-top: 16px; padding: 13px 15px; border-left: 3px solid #a43d4a; background: #faecee; font-weight: 700; }

@@ -4,22 +4,27 @@ import { notFound } from "next/navigation";
 import { Check, Sparkle } from "@/components/icons";
 import { HairLengthIllustration } from "@/components/service/hair-length-illustration";
 import { bookingConfig, hairLengths } from "@/config/booking";
-import { getService, services } from "@/config/services";
 import { formatCurrency } from "@/lib/format";
+import { getPublicServiceBySlug } from "@/services/service-service";
 
 type Props = { params: Promise<{ slug: string }> };
 
-export function generateStaticParams() {
-  return services.map(({ slug }) => ({ slug }));
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const service = getService((await params).slug);
-  return { title: service?.name ?? "Servicio" };
+  try {
+    const service = await getPublicServiceBySlug((await params).slug);
+    return { title: service?.name ?? "Servicio" };
+  } catch {
+    return { title: "Servicio" };
+  }
 }
 
 export default async function ServicePage({ params }: Props) {
-  const service = getService((await params).slug);
+  let service;
+  try {
+    service = await getPublicServiceBySlug((await params).slug);
+  } catch {
+    return <section className="section"><div className="container narrow"><Link href="/#servicios" className="back-link">← Volver a tratamientos</Link><p className="catalog-notice" role="alert">No pudimos cargar este tratamiento en este momento. Intentá nuevamente en unos minutos.</p></div></section>;
+  }
   if (!service) notFound();
 
   return (
@@ -40,13 +45,17 @@ export default async function ServicePage({ params }: Props) {
         <div className="container narrow">
           <div className="section-heading detail-heading"><div><p className="eyebrow">Guía de precios</p><h2>Valor según el largo</h2></div><p>Una referencia para que puedas orientarte antes de tu visita.</p></div>
           <div className="price-list">
-            {hairLengths.map((length) => (
+            {service.priceOptions.map(({ key, amount }) => {
+              const length = hairLengths.find((item) => item.key === key);
+              if (!length) return null;
+              return (
               <div className="price-row" key={length.key}>
                 <HairLengthIllustration length={length} />
                 <div><h3>{length.label}</h3><p>{length.description}</p></div>
-                <strong>{formatCurrency(service.prices[length.key])}</strong>
+                <strong>{formatCurrency(amount)}</strong>
               </div>
-            ))}
+              );
+            })}
           </div>
           <div className="extra-note"><span>+</span><div><strong>Adicional por cantidad</strong><p>Si tenés mucha cantidad de cabello se suma {formatCurrency(5000)}.</p></div></div>
           <div className="important-note"><Check /><p><strong>El precio definitivo se confirma presencialmente.</strong><br />No necesitás elegir tu largo al reservar. Maca evaluará tu cabello antes de comenzar.</p></div>

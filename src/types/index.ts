@@ -26,7 +26,8 @@ export type BookingFormData = {
   service: ServiceSlug | "";
   date: string;
   time: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   whatsapp: string;
   email: string;
   acceptedPolicy: boolean;
@@ -34,5 +35,26 @@ export type BookingFormData = {
 
 export type ConfirmedBooking = BookingFormData & {
   id: string;
-  createdAt: string;
+  serviceName: string;
+  depositAmount: number;
 };
+
+export type { PublicService, PublicServicePrice } from "./catalog";
+
+// Preserve the existing UI Service name; database rows use DbService/DbBooking.
+export type {
+  Business,
+  Professional,
+  BusinessMember,
+  Service as DbService,
+  ServicePrice,
+  Client,
+  Booking as DbBooking,
+  BookingEvent,
+  BookingStatus,
+  DepositStatus as DbDepositStatus,
+  ScheduleBlock,
+  ScheduleBlockType,
+  Payment,
+  PaymentStatus,
+} from "./database";

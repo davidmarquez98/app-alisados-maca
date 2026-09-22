@@ -12,6 +12,7 @@ export const appointmentStatusConfig: Record<AppointmentStatus, { label: string 
   completed: { label: "Realizado" },
   cancelled: { label: "Cancelado" },
   no_show: { label: "No se presentó" },
+  expired: { label: "Vencido" },
 };
 
 export const depositStatusConfig: Record<DepositStatus, { label: string }> = {

@@ -1,3 +1,5 @@
+export const BUSINESS_SLUG = "alisados-maca";
+
 export const businessConfig = {
   name: "Alisados Maca",
   professional: "Maca",

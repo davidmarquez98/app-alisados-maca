@@ -2,10 +2,19 @@ import Link from "next/link";
 import { Arrow, Sparkle } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/button-link";
 import { businessConfig } from "@/config/business";
-import { services } from "@/config/services";
 import { formatCurrency } from "@/lib/format";
+import { getPublicServices } from "@/services/service-service";
+import type { PublicService } from "@/types";
 
-export default function HomePage() {
+export default async function HomePage() {
+  let services: PublicService[] = [];
+  let catalogError = false;
+  try {
+    services = await getPublicServices();
+  } catch {
+    catalogError = true;
+  }
+
   return (
     <>
       <section className="hero">
@@ -41,6 +50,8 @@ export default function HomePage() {
               </Link>
             ))}
           </div>
+          {catalogError && <p className="catalog-notice" role="alert">No pudimos cargar los tratamientos en este momento. Intentá nuevamente en unos minutos.</p>}
+          {!catalogError && services.length === 0 && <p className="catalog-notice">Todavía no hay tratamientos disponibles.</p>}
           <p className="price-disclaimer">Los precios son orientativos. El valor final se confirma presencialmente según largo y cantidad de cabello.</p>
         </div>
       </section>
