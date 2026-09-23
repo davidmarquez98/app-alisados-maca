@@ -16,6 +16,18 @@ export function formatBookingDate(date: string) {
   }).format(new Date(`${date}T12:00:00Z`));
 }
 
+export function formatDateInputValue(date: string) {
+  if (!date) return "";
+  const parts = new Intl.DateTimeFormat("es-AR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).formatToParts(new Date(`${date}T12:00:00Z`));
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("day")} ${value("month").replace(".", "")} ${value("year")}`;
+}
+
 export function getTodayInputValue() {
   const now = new Date();
   const offset = now.getTimezoneOffset();

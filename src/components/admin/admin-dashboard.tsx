@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { NativeDateField } from "@/components/forms/native-date-field";
 import { Check, Sparkle } from "@/components/icons";
 import { agendaBlockReasons, appointmentStatusConfig, cancellationDepositConfig, cancellationReasonConfig, depositStatusConfig } from "@/config/admin";
 import { bookingConfig } from "@/config/booking";
@@ -9,6 +10,7 @@ import type { AdminAppointment, AgendaBlock, AgendaBlockType, AppointmentStatus,
 
 type DialogName = "reschedule" | "cancel" | "block" | "blockDetail" | null;
 type BlockFields = Pick<AgendaBlock, "type" | "date" | "endDate" | "time" | "reason" | "note">;
+const adminRequestTimeoutMs = 15_000;
 
 function argentinaToday() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -17,10 +19,29 @@ function argentinaToday() {
 }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, cache: "no-store" });
-  const result = await response.json() as T & { error?: string };
-  if (!response.ok) throw new Error(result.error ?? "No pudimos completar la operación.");
-  return result;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), adminRequestTimeoutMs);
+  try {
+    const response = await fetch(url, { ...init, cache: "no-store", signal: controller.signal });
+    let result: T & { error?: string };
+    try {
+      result = await response.json() as T & { error?: string };
+    } catch {
+      throw new Error("La agenda devolvió una respuesta inválida. Reintentá.");
+    }
+    if (!response.ok) throw new Error(result.error ?? "No pudimos completar la operación.");
+    return result;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("La agenda tardó demasiado en responder. Reintentá.");
+    }
+    if (error instanceof TypeError) {
+      throw new Error("No pudimos conectar con la agenda. Reintentá.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 export function AdminDashboard() {
@@ -181,7 +202,7 @@ function RescheduleDialog({ appointment, minDate, error, busy, onClose, onSave }
       .catch((cause: unknown) => { if (!controller.signal.aborted) { setTimes([]); setAvailabilityError(cause instanceof Error ? cause.message : "No pudimos consultar horarios."); setLoading(false); } });
     return () => controller.abort();
   }, [date]);
-  return <Modal title="Reprogramar turno" onClose={onClose}><form className="admin-form" onSubmit={(event) => { event.preventDefault(); onSave(date, time); }}><p className="dialog-copy">Se conservarán la clienta, el servicio, la seña y el historial.</p><label><span>Nueva fecha</span><input name="date" type="date" min={minDate} value={date} onChange={(event) => { setDate(event.target.value); setTime(""); setTimes([]); setLoading(true); }} required /></label><label><span>Nuevo horario</span><select name="time" value={time} onChange={(event) => setTime(event.target.value)} required><option value="">Elegí un horario</option>{times.map((slot) => <option value={slot} key={slot}>{slot}</option>)}</select>{loading && <small>Consultando horarios…</small>}{!loading && date && times.length === 0 && <small>No hay horarios disponibles.</small>}</label>{availabilityError && <p className="admin-form-error" role="alert">{availabilityError}</p>}{error && <p className="admin-form-error" role="alert">{error}</p>}<DialogActions onClose={onClose} submitLabel="Confirmar reprogramación" busy={busy || loading || Boolean(availabilityError)} /></form></Modal>;
+  return <Modal title="Reprogramar turno" onClose={onClose}><form className="admin-form" onSubmit={(event) => { event.preventDefault(); onSave(date, time); }}><p className="dialog-copy">Se conservarán la clienta, el servicio, la seña y el historial.</p><NativeDateField label="Nueva fecha" name="date" min={minDate} value={date} onChange={(value) => { setDate(value); setTime(""); setTimes([]); setLoading(true); }} required /><label><span>Nuevo horario</span><select name="time" value={time} onChange={(event) => setTime(event.target.value)} required><option value="">Elegí un horario</option>{times.map((slot) => <option value={slot} key={slot}>{slot}</option>)}</select>{loading && <small>Consultando horarios…</small>}{!loading && date && times.length === 0 && <small>No hay horarios disponibles.</small>}</label>{availabilityError && <p className="admin-form-error" role="alert">{availabilityError}</p>}{error && <p className="admin-form-error" role="alert">{error}</p>}<DialogActions onClose={onClose} submitLabel="Confirmar reprogramación" busy={busy || loading || Boolean(availabilityError)} /></form></Modal>;
 }
 
 function CancelDialog({ appointment, error, busy, onClose, onConfirm }: { appointment: AdminAppointment; error: string; busy: boolean; onClose: () => void; onConfirm: (reason: CancellationReason, depositAction: CancellationDepositAction, note: string) => void }) {
@@ -191,12 +212,13 @@ function CancelDialog({ appointment, error, busy, onClose, onConfirm }: { appoin
 function BlockDialog({ minDate, error, busy, onClose, onSave }: { minDate: string; error: string; busy: boolean; onClose: () => void; onSave: (values: BlockFields) => void }) {
   const [type, setType] = useState<AgendaBlockType>("slot");
   const [date, setDate] = useState(minDate);
+  const [endDate, setEndDate] = useState("");
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     onSave({ type, date, endDate: String(form.get("endDate") || "") || undefined, time: String(form.get("time") || "") || undefined, reason: String(form.get("reason") || "") || undefined, note: String(form.get("note") || "").trim() || undefined });
   }
-  return <Modal title="Bloquear agenda" onClose={onClose}><form className="admin-form" onSubmit={submit}><p className="dialog-copy">Elegí si querés bloquear un horario, un día completo o un rango inclusivo de fechas.</p><label className="field-wide"><span>Tipo de bloqueo</span><select name="type" value={type} onChange={(event) => setType(event.target.value as AgendaBlockType)}><option value="slot">Horario específico</option><option value="day">Día completo</option><option value="range">Rango de fechas</option></select></label><label><span>{type === "range" ? "Fecha desde" : "Fecha"}</span><input name="date" type="date" min={minDate} value={date} onChange={(event) => setDate(event.target.value)} required /></label>{type === "range" && <label><span>Fecha hasta</span><input name="endDate" type="date" min={date || minDate} required /></label>}{type === "slot" && <label><span>Horario</span><select name="time" defaultValue="" required><option value="">Elegí un horario</option>{bookingConfig.availableTimes.map((time) => <option value={time} key={time}>{time}</option>)}</select></label>}<label className="field-wide"><span>Motivo interno <small>(opcional)</small></span><select name="reason" defaultValue=""><option value="">Sin motivo</option>{agendaBlockReasons.map((reason) => <option value={reason} key={reason}>{reason}</option>)}</select></label><label className="field-wide"><span>Nota interna <small>(opcional)</small></span><textarea name="note" rows={3} placeholder="Detalle visible solo en el admin" /></label>{error && <p className="admin-form-error" role="alert">{error}</p>}<DialogActions onClose={onClose} submitLabel="Guardar bloqueo" busy={busy} /></form></Modal>;
+  return <Modal title="Bloquear agenda" onClose={onClose}><form className="admin-form" onSubmit={submit}><p className="dialog-copy">Elegí si querés bloquear un horario, un día completo o un rango inclusivo de fechas.</p><label className="field-wide"><span>Tipo de bloqueo</span><select name="type" value={type} onChange={(event) => setType(event.target.value as AgendaBlockType)}><option value="slot">Horario específico</option><option value="day">Día completo</option><option value="range">Rango de fechas</option></select></label><NativeDateField label={type === "range" ? "Fecha desde" : "Fecha"} name="date" min={minDate} value={date} onChange={setDate} required />{type === "range" && <NativeDateField label="Fecha hasta" name="endDate" min={date || minDate} value={endDate} onChange={setEndDate} required />}{type === "slot" && <label><span>Horario</span><select name="time" defaultValue="" required><option value="">Elegí un horario</option>{bookingConfig.availableTimes.map((time) => <option value={time} key={time}>{time}</option>)}</select></label>}<label className="field-wide"><span>Motivo interno <small>(opcional)</small></span><select name="reason" defaultValue=""><option value="">Sin motivo</option>{agendaBlockReasons.map((reason) => <option value={reason} key={reason}>{reason}</option>)}</select></label><label className="field-wide"><span>Nota interna <small>(opcional)</small></span><textarea name="note" rows={3} placeholder="Detalle visible solo en el admin" /></label>{error && <p className="admin-form-error" role="alert">{error}</p>}<DialogActions onClose={onClose} submitLabel="Guardar bloqueo" busy={busy} /></form></Modal>;
 }
 
 function BlockDetail({ block, error, busy, onClose, onDelete }: { block: AgendaBlock; error: string; busy: boolean; onClose: () => void; onDelete: () => void }) {
